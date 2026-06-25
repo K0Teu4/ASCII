@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCII Sandbox</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { height:100%; overflow:hidden; }
+body { background:#050505; color:#ccc; font-family:'Courier New',Courier,monospace; }
+#app { display:flex; flex-direction:column; width:100%; height:100%; padding:3px; }
+#header { height:20px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:0 4px; font-size:11px; color:#4af; text-transform:uppercase; letter-spacing:1px; }
+#main { display:flex; gap:4px; flex:1; min-height:0; }
+#game-container { border:1px solid #333; background:#000; flex:1; min-width:0; overflow:hidden; position:relative; }
+canvas { display:block; image-rendering:pixelated; position:absolute; top:0; left:0; width:100%; height:100%; }
+#sidebar { width:190px; display:flex; flex-direction:column; gap:3px; overflow:hidden; flex-shrink:0; }
+.panel { background:#111; border:1px solid #333; border-radius:3px; padding:4px 6px; font-size:10px; flex-shrink:0; }
+.panel h3 { color:#4af; font-size:11px; margin-bottom:3px; border-bottom:1px solid #333; padding-bottom:2px; }
+.panel p { margin:1px 0; }
+.panel .row { display:flex; justify-content:space-between; }
+.key { color:#fa4; font-weight:bold; }
+.value { color:#afa; }
+.bad { color:#f44; }
+.warn { color:#fa4; }
+.good { color:#4f4; }
+#log-panel { display:flex; flex-direction:column; flex-shrink:0; }
+#log { font-size:10px; line-height:1.35; overflow:hidden; }
+.log-msg { padding:1px 2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.log-msg:nth-child(odd) { background:#151515; }
+.hp-bar { width:100%; height:5px; background:#222; border-radius:1px; margin-top:2px; overflow:hidden; }
+.hp-fill { height:100%; background:#4a4; transition:width 0.2s; }
+.hp-fill.warn { background:#fa4; }
+.hp-fill.crit { background:#f44; }
+#equip-panel { font-size:10px; color:#999; }
+#equip-panel .slot { margin:1px 0; display:flex; justify-content:space-between; }
+#equip-panel .slot-name { color:#666; }
+.modal-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:200; justify-content:center; align-items:center; }
+.modal-overlay.open { display:flex; }
+.modal-window { background:#111; border:2px solid #444; border-radius:6px; width:480px; max-height:560px; display:flex; flex-direction:column; }
+.modal-header { background:#1a1a2a; padding:8px 12px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; }
+.modal-header h2 { color:#4af; font-size:12px; margin:0; }
+.modal-header .hint { color:#666; font-size:10px; }
+.modal-list { list-style:none; padding:0; overflow-y:auto; max-height:420px; }
+.modal-list li { padding:6px 12px; border-bottom:1px solid #1a1a1a; cursor:pointer; display:flex; justify-content:space-between; align-items:center; }
+.modal-list li:hover { background:#1a1a2a; }
+.modal-list li.selected { background:#2a2a4a; }
+.modal-list li .item-name { color:#ccc; font-weight:bold; }
+.modal-list li .item-desc { color:#666; font-size:9px; margin-left:4px; }
+.modal-list li .item-stats { color:#888; font-size:9px; }
+.modal-list li .item-count { color:#888; margin-left:8px; }
+.modal-footer { padding:8px 12px; border-top:1px solid #333; font-size:10px; color:#888; display:flex; gap:10px; flex-wrap:wrap; }
+.modal-footer span { color:#fa4; }
+.modal-empty { padding:20px; text-align:center; color:#555; font-size:11px; }
+#confirm-window { background:#111; border:2px solid #4af; border-radius:6px; padding:20px 30px; text-align:center; min-width:320px; }
+#confirm-text { color:#ccc; font-size:12px; margin-bottom:12px; line-height:1.5; }
+#confirm-hint { color:#888; font-size:10px; }
+#help-body { padding:12px 16px; font-size:11px; color:#aaa; line-height:1.6; overflow-y:auto; max-height:400px; }
+#help-body h4 { color:#4af; margin:8px 0 4px; font-size:11px; border-bottom:1px solid #333; padding-bottom:2px; }
+#help-body .key-row { display:flex; justify-content:space-between; margin:2px 0; }
+#help-body .key-row span:first-child { color:#fa4; min-width:80px; }
+#help-body .key-row span:last-child { color:#ccc; }
+#help-body .section { margin-bottom:10px; }
+#char-body { padding:12px 16px; font-size:11px; color:#aaa; line-height:1.6; overflow-y:auto; max-height:400px; }
+#char-body h4 { color:#4af; margin:8px 0 4px; font-size:11px; border-bottom:1px solid #333; padding-bottom:2px; }
+#char-body .stat-row { display:flex; justify-content:space-between; margin:2px 0; padding:2px 0; border-bottom:1px solid #1a1a1a; }
+#char-body .stat-row .label { color:#888; }
+#char-body .stat-row .val { color:#afa; }
+#char-body .stat-row .val.bad { color:#f44; }
+#char-body .stat-row .val.warn { color:#fa4; }
+#debug-body { padding:12px 16px; font-size:11px; color:#aaa; line-height:1.6; overflow-y:auto; max-height:420px; }
+#debug-body .debug-row { padding:6px 0; border-bottom:1px solid #1a1a1a; cursor:pointer; }
+#debug-body .debug-row:hover { background:#1a1a2a; }
+#debug-body .debug-row .title { color:#4af; font-weight:bold; }
+#debug-body .debug-row .desc { color:#666; font-size:9px; }
+#debug-back { display:none; padding:8px 12px; border-top:1px solid #333; font-size:10px; color:#fa4; cursor:pointer; }
+#debug-back:hover { background:#1a1a2a; }
+#debug-back.show { display:block; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="header"><span>ASCII Sandbox — <span id="time-display">08:00</span> <span id="weather-display" style="color:#888"></span> | Z: <span id="level-name">Поверхность</span></span><span style="color:#666;font-size:10px">` — отладка | H — помощь</span></div>
+  <div id="main">
+    <div id="game-container"><canvas id="game"></canvas></div>
+    <div id="sidebar">
+      <div class="panel">
+        <h3>❤️ Статус</h3>
+        <div class="row"><span>HP:</span> <span class="value" id="hp-text">100/100</span></div>
+        <div class="hp-bar"><div class="hp-fill" id="hp-bar" style="width:100%"></div></div>
+        <div class="row" style="margin-top:4px"><span>Поз:</span> <span class="value" id="pos">0,0</span></div>
+        <div class="row"><span>Тайл:</span> <span class="value" id="terrain">-</span></div>
+        <div class="row"><span>Ход:</span> <span class="value" id="turn">0</span></div>
+        <div class="row"><span>Вес:</span> <span class="value" id="weight">0.0кг</span></div>
+      </div>
+      <div class="panel">
+        <h3>🍖 Симуляция</h3>
+        <div class="row"><span>Голод:</span> <span class="value" id="hunger">сыт</span></div>
+        <div class="row"><span>Жажда:</span> <span class="value" id="thirst">не хочет</span></div>
+        <div class="row"><span>Усталость:</span> <span class="value" id="fatigue">бодр</span></div>
+      </div>
+      <div class="panel">
+        <h3>🎒 Экип</h3>
+        <div id="equip-panel">
+          <div class="slot"><span class="slot-name">Руки:</span> <span class="value" id="wield">голые руки</span></div>
+          <div class="slot"><span class="slot-name">Торс:</span> <span id="armor-torso">нет</span></div>
+          <div class="slot"><span class="slot-name">Ноги:</span> <span id="armor-legs">нет</span></div>
+          <div class="slot"><span class="slot-name">Голова:</span> <span id="armor-head">нет</span></div>
+          <div class="slot"><span class="slot-name">Обувь:</span> <span id="armor-feet">нет</span></div>
+        </div>
+      </div>
+      <div class="panel" id="log-panel">
+        <h3>📝 Лог <span style="color:#666;font-size:9px">(P)</span></h3>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="inv-modal">
+  <div class="modal-window">
+    <div class="modal-header"><h2>🎒 Инвентарь</h2><span class="hint">Esc/I — закрыть</span></div>
+    <ul class="modal-list" id="inv-list"></ul>
+    <div class="modal-footer">
+      <span>↑↓</span> выбор <span>Enter</span> использовать <span>D</span> выбросить <span>W</span> оружие <span>E</span> броня
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="confirm-modal">
+  <div id="confirm-window">
+    <p id="confirm-text"></p>
+    <p id="confirm-hint"><span class="key">Y</span> — да <span class="key">N</span> — нет</p>
+  </div>
+</div>
+
+<div class="modal-overlay" id="help-modal">
+  <div class="modal-window" style="width:500px">
+    <div class="modal-header"><h2>⌨ Управление</h2><span class="hint">Esc — закрыть</span></div>
+    <div id="help-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="log-full-modal">
+  <div class="modal-window" style="width:600px">
+    <div class="modal-header"><h2>📝 Полный лог</h2><span class="hint">Esc/P — закрыть</span></div>
+    <div class="modal-list" id="log-full-list" style="padding:8px 12px"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="char-modal">
+  <div class="modal-window" style="width:400px">
+    <div class="modal-header"><h2>👤 Персонаж</h2><span class="hint">Esc/@ — закрыть</span></div>
+    <div id="char-body"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="debug-modal">
+  <div class="modal-window" style="width:500px">
+    <div class="modal-header"><h2>🐛 Отладка</h2><span class="hint">Esc/` — закрыть</span></div>
+    <div id="debug-body"></div>
+    <div id="debug-back" onclick="game.debugBack()">← Назад</div>
+    <div class="modal-footer"><span>↑↓</span> выбор <span>Enter</span> выбрать <span>Esc</span> закрыть</div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="craft-modal">
+  <div class="modal-window" style="width:680px">
+    <div class="modal-header"><h2>⚒ Крафт</h2><span class="hint">Esc/C — закрыть</span></div>
+    <ul class="modal-list" id="craft-list"></ul>
+    <div class="modal-footer"><span>↑↓</span> выбор <span>Enter</span> создать</div>
+  </div>
+</div>
+
+<script>
+const TILE_W = 14, TILE_H = 18;
+const MAP_W = 120, MAP_H = 120;
+const FOV_RADIUS = 16;
+const FONT = '14px "Courier New", monospace';
+
+const COLORS = {
+  grass: '#5a5', grass_dark: '#2a3a2a',
+  dirt: '#875', dirt_dark: '#3a2a1a',
+  sand: '#cb4', sand_dark: '#3a2a0a',
+  tree: '#4a4', tree_dark: '#1a2a1a',
+  bush: '#4a4', bush_dark: '#1a2a1a',
+  water: '#48a', water_dark: '#1a2a3a',
+  pavement: '#777', pavement_dark: '#2a2a2a',
+  sidewalk: '#888', sidewalk_dark: '#2a2a2a',
+  wall: '#aaa', wall_dark: '#2a2a2a',
+  floor: '#555', floor_dark: '#1a1a1a',
+  door: '#fa4', door_dark: '#3a2a0a',
+  window: '#aaf', window_dark: '#1a1a2a',
+  window_broken: '#88a', window_broken_dark: '#1a1a1a',
+  table: '#a84', table_dark: '#2a1a0a',
+  bed: '#a44', bed_dark: '#2a0a0a',
+  shelf: '#a84', shelf_dark: '#2a1a0a',
+  stairs_down: '#fa4', stairs_down_dark: '#2a1a0a',
+  stairs_up: '#fa4', stairs_up_dark: '#2a1a0a',
+  fence: '#888', fence_dark: '#2a2a2a',
+  car: '#488', car_dark: '#0a1a2a',
+  player: '#4af', player_dark: '#1a2a3a',
+  enemy: '#f44', enemy_dark: '#2a0a0a',
+  enemy_fast: '#f8a', enemy_fast_dark: '#2a1a0a',
+  enemy_fat: '#c44', enemy_fat_dark: '#2a0a0a',
+  dog: '#a84', dog_dark: '#2a1a0a',
+  bear: '#882', bear_dark: '#1a0a0a',
+  survivor: '#4af', survivor_dark: '#1a2a3a',
+  food: '#a44', food_dark: '#2a0a0a',
+  weapon: '#ccc', weapon_dark: '#2a2a2a',
+  medkit: '#4f4', medkit_dark: '#0a2a0a',
+  clothes: '#aa8', clothes_dark: '#2a2a1a',
+  stone: '#888', stone_dark: '#2a2a2a',
+  unexplored: '#000'
+};
+
+const BGS = {
+  grass: '#0a1a0a', dirt: '#1a0a0a', sand: '#1a1a0a', tree: '#0a1a0a', bush: '#0a1a0a',
+  water: '#0a0a2a', pavement: '#1a1a1a', sidewalk: '#1a1a1a', wall: '#1a1a1a', floor: '#111',
+  door: '#1a1a0a', window: '#0a0a1a', window_broken: '#0a0a1a', table: '#1a0a0a', bed: '#1a0a0a',
+  shelf: '#1a0a0a', stairs_down: '#1a0a0a', stairs_up: '#1a0a0a', fence: '#1a1a1a', car: '#0a0a1a',
+  stone: '#1a1a1a'
+};
+
+const TILES = {
+  GRASS: { char: '"', color: 'grass', blocks: false, opaque: false },
+  DIRT: { char: ',', color: 'dirt', blocks: false, opaque: false },
+  SAND: { char: ':', color: 'sand', blocks: false, opaque: false },
+  TREE: { char: 'T', color: 'tree', blocks: true, opaque: true },
+  BUSH: { char: '^', color: 'bush', blocks: false, opaque: false },
+  WATER: { char: '~', color: 'water', blocks: true, opaque: false },
+  PAVEMENT: { char: '=', color: 'pavement', blocks: false, opaque: false },
+  SIDEWALK: { char: '-', color: 'sidewalk', blocks: false, opaque: false },
+  WALL: { char: '#', color: 'wall', blocks: true, opaque: true },
+  FLOOR: { char: '.', color: 'floor', blocks: false, opaque: false },
+  DOOR_C: { char: '+', color: 'door', blocks: true, opaque: true },
+  DOOR_O: { char: "'", color: 'door', blocks: false, opaque: false },
+  WINDOW: { char: 'o', color: 'window', blocks: true, opaque: false },
+  WINDOW_B: { char: 'w', color: 'window_broken', blocks: false, opaque: false },
+  TABLE: { char: 't', color: 'table', blocks: false, opaque: false },
+  BED: { char: 'b', color: 'bed', blocks: false, opaque: false },
+  SHELF: { char: 'h', color: 'shelf', blocks: true, opaque: true },
+  STAIRS_DOWN: { char: '>', color: 'stairs_down', blocks: false, opaque: false },
+  STAIRS_UP: { char: '<', color: 'stairs_up', blocks: false, opaque: false },
+  FENCE: { char: '|', color: 'fence', blocks: true, opaque: false },
+  FENCE_H: { char: '-', color: 'fence', blocks: true, opaque: false },
+  CAR: { char: 'c', color: 'car', blocks: true, opaque: true }
+};
+
+const ITEMS = {
+  stick: { name: 'дубина', char: '/', color: 'weapon', type: 'weapon', weight: 800, volume: 6, to_hit: 0, bash_dmg: 8, cut_dmg: 0, pierce_dmg: 0, move_cost: 100, desc: 'Баш 8, Пор 0' },
+  knife: { name: 'нож', char: '/', color: 'weapon', type: 'weapon', weight: 200, volume: 1, to_hit: 1, bash_dmg: 2, cut_dmg: 10, pierce_dmg: 0, move_cost: 80, desc: 'Баш 2, Пор 10, Точн +1' },
+  machete: { name: 'мачете', char: '/', color: 'weapon', type: 'weapon', weight: 600, volume: 4, to_hit: 2, bash_dmg: 4, cut_dmg: 18, pierce_dmg: 0, move_cost: 90, desc: 'Баш 4, Пор 18, Точн +2' },
+  crowbar: { name: 'лом', char: '/', color: 'weapon', type: 'weapon', weight: 1000, volume: 4, to_hit: 1, bash_dmg: 14, cut_dmg: 0, pierce_dmg: 0, move_cost: 110, desc: 'Баш 14, Точн +1' },
+  wood_spear: { name: 'деревянное копьё', char: '/', color: 'weapon', type: 'weapon', weight: 600, volume: 5, to_hit: 1, bash_dmg: 6, cut_dmg: 0, pierce_dmg: 8, move_cost: 100, desc: 'Баш 6, Пор 8' },
+  spear: { name: 'каменное копьё', char: '/', color: 'weapon', type: 'weapon', weight: 900, volume: 6, to_hit: 1, bash_dmg: 8, cut_dmg: 0, pierce_dmg: 15, move_cost: 110, desc: 'Баш 8, Пор 15' },
+  stone: { name: 'камень', char: '*', color: 'stone', type: 'material', weight: 500, volume: 1, desc: 'Тяжёлый камень' },
+  sharp_rock: { name: 'острый камень', char: '*', color: 'stone', type: 'weapon', weight: 300, volume: 1, to_hit: 0, bash_dmg: 3, cut_dmg: 6, pierce_dmg: 0, move_cost: 80, desc: 'Баш 3, Пор 6' },
+  canned_food: { name: 'консервы', char: '?', color: 'food', type: 'food', weight: 400, volume: 1, nutrition: 250, quench: 0, fun: 0, desc: 'Пит 250' },
+  water_clean: { name: 'вода', char: '?', color: 'food', type: 'food', weight: 250, volume: 1, nutrition: 0, quench: 100, fun: 0, desc: 'Жажда -100' },
+  cola: { name: 'кола', char: '?', color: 'food', type: 'food', weight: 350, volume: 1, nutrition: 80, quench: 60, fun: 5, desc: 'Пит 80, Жаж -60, Вес +5' },
+  medkit: { name: 'аптечка', char: '!', color: 'medkit', type: 'medkit', weight: 500, volume: 2, heal: 40, charges: 2, per_use: 1, desc: '2x, +40 HP' },
+  bandage: { name: 'бинт', char: '!', color: 'medkit', type: 'medkit', weight: 50, volume: 0, heal: 20, charges: 1, per_use: 1, desc: '+20 HP' },
+  tshirt: { name: 'футболка', char: '[', color: 'clothes', type: 'armor', weight: 150, volume: 2, coverage: 50, encumbrance: 0, bash_resist: 1, cut_resist: 0, pierce_resist: 0, warmth: 5, slot: 'torso', desc: 'Зщ 1, торс' },
+  jacket: { name: 'куртка', char: '[', color: 'clothes', type: 'armor', weight: 800, volume: 8, coverage: 90, encumbrance: 10, bash_resist: 3, cut_resist: 2, pierce_resist: 1, warmth: 20, slot: 'torso', desc: 'Зщ 3/2/1, торс' },
+  jeans: { name: 'джинсы', char: '[', color: 'clothes', type: 'armor', weight: 500, volume: 5, coverage: 90, encumbrance: 5, bash_resist: 2, cut_resist: 1, pierce_resist: 0, warmth: 10, slot: 'legs', desc: 'Зщ 2/1, ноги' },
+  sneakers: { name: 'кроссовки', char: '[', color: 'clothes', type: 'armor', weight: 300, volume: 3, coverage: 40, encumbrance: 0, bash_resist: 1, cut_resist: 0, pierce_resist: 0, warmth: 5, slot: 'feet', desc: 'Зщ 1, ступни' },
+  helmet: { name: 'каска', char: '[', color: 'clothes', type: 'armor', weight: 400, volume: 4, coverage: 80, encumbrance: 15, bash_resist: 5, cut_resist: 3, pierce_resist: 2, warmth: 5, slot: 'head', desc: 'Зщ 5/3/2, голова' }
+};
+
+const RECIPES = [
+  {name: 'Деревянное копьё', id: 'wood_spear', req: {stick: 2}, result: {type: 'wood_spear', count: 1}, desc: 'Баш 6, Пор 8. Нужно: 2 дубины'},
+  {name: 'Каменное копьё', id: 'spear', req: {stick: 1, sharp_rock: 1}, result: {type: 'spear', count: 1}, desc: 'Баш 8, Пор 15. Нужно: дубина, острый камень'},
+  {name: 'Острый камень', id: 'sharp_rock', req: {stone: 1}, tool: 'knife', result: {type: 'sharp_rock', count: 1}, desc: 'Баш 3, Пор 6. Нужно: камень, нож'},
+  {name: 'Бинт из ткани', id: 'bandage', req: {tshirt: 1}, result: {type: 'bandage', count: 2}, desc: '2x +20 HP. Нужно: футболка'}
+];
+
+const BUILDING_LOOT = {
+  house: { items: ['canned_food','water_clean','tshirt','jeans','sneakers','knife','bandage','stone'], weights: [0.4,0.4,0.2,0.2,0.2,0.1,0.15,0.2] },
+  hospital: { items: ['medkit','bandage','water_clean','canned_food'], weights: [0.5,0.6,0.3,0.2] },
+  police: { items: ['helmet','jacket','knife','crowbar','machete','bandage','stick'], weights: [0.2,0.2,0.3,0.15,0.05,0.3,0.1] },
+  shop: { items: ['canned_food','water_clean','cola','bandage','tshirt','sneakers','stone'], weights: [0.5,0.5,0.3,0.2,0.1,0.1,0.1] },
+  shelter: { items: ['canned_food','water_clean','medkit','bandage','stick','tshirt','jeans','stone'], weights: [0.3,0.3,0.2,0.3,0.2,0.15,0.15,0.2] }
+};
+
+const FURNITURE_LOOT = ['canned_food','water_clean','knife','bandage','tshirt','jeans','stick','cola','stone','sharp_rock'];
+
+const BUILDING_NAMES = { house: 'Дом', hospital: 'Больница', police: 'Полицейский участок', shop: 'Магазин', shelter: 'Убежище' };
+
+function rand(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function randItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function dist(x1, y1, x2, y2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2); }
+
+class OverworldGenerator {
+  constructor(w, h) { this.w = w; this.h = h; this.map = []; this.buildings = []; }
+  generate() {
+    this.map = Array(this.h).fill(null).map(() => Array(this.w).fill(null).map(() => ({...TILES.GRASS})));
+    this._addPatches(TILES.DIRT, 0.12, 4);
+    this._addForests();
+    this._addRivers(rand(2, 4));
+    this._addLakes(rand(2, 3));
+    this._addSand();
+    this._addRoads();
+    this._addBuildings(14);
+    this._addBushes();
+    this._addPaths();
+    this._addBridges();
+    this._addFences();
+    this._addParkingLots();
+    this._addPlayerShelter();
+    return this.map;
+  }
+  _addPatches(tileType, density, iterations) {
+    let temp = Array(this.h).fill(null).map(() => Array(this.w).fill(false));
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) temp[y][x] = Math.random() < density;
+    for (let i = 0; i < iterations; i++) {
+      const nt = Array(this.h).fill(null).map(() => Array(this.w).fill(false));
+      for (let y = 1; y < this.h - 1; y++) for (let x = 1; x < this.w - 1; x++) {
+        let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (temp[y+dy][x+dx]) n++;
+        nt[y][x] = n >= 5;
+      }
+      temp = nt;
+    }
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (temp[y][x]) this.map[y][x] = {...tileType};
+  }
+  _addForests() {
+    let f = Array(this.h).fill(null).map(() => Array(this.w).fill(false));
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) f[y][x] = Math.random() < 0.28;
+    for (let i = 0; i < 4; i++) {
+      const nf = Array(this.h).fill(null).map(() => Array(this.w).fill(false));
+      for (let y = 1; y < this.h - 1; y++) for (let x = 1; x < this.w - 1; x++) {
+        let n = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (f[y+dy][x+dx]) n++;
+        nf[y][x] = n >= 4;
+      }
+      f = nf;
+    }
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) if (f[y][x]) this.map[y][x] = {...TILES.TREE};
+  }
+  _addRivers(count) {
+    for (let i = 0; i < count; i++) {
+      let x = rand(10, this.w - 10), y = 0;
+      while (y < this.h) { this.map[y][x] = {...TILES.WATER}; if (Math.random() < 0.4 && x+1 < this.w-1) this.map[y][x+1] = {...TILES.WATER}; if (Math.random() < 0.4 && x-1 > 0) this.map[y][x-1] = {...TILES.WATER}; x += rand(-1,1); x = Math.max(2, Math.min(this.w-3, x)); y++; }
+    }
+  }
+  _addLakes(count) {
+    for (let i = 0; i < count; i++) {
+      const cx = rand(10, this.w-10), cy = rand(10, this.h-10), size = rand(8, 20);
+      let placed = 0, queue = [{x:cx,y:cy}], visited = new Set();
+      while (queue.length > 0 && placed < size) {
+        const c = queue.shift(), key = c.x+','+c.y; if (visited.has(key)) continue; visited.add(key);
+        if (c.x < 2 || c.x >= this.w-2 || c.y < 2 || c.y >= this.h-2) continue;
+        if (this.map[c.y][c.x].blocks) continue;
+        const wallN = [[0,1],[0,-1],[1,0],[-1,0]].filter(([dx,dy]) => { const nx=c.x+dx, ny=c.y+dy; return nx>=0&&nx<this.w&&ny>=0&&ny<this.h&&this.map[ny][nx].char==='#'; }).length;
+        if (wallN >= 3) continue;
+        this.map[c.y][c.x] = {...TILES.WATER}; placed++;
+        [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dx,dy]) => queue.push({x:c.x+dx,y:c.y+dy}));
+      }
+    }
+  }
+  _addSand() {
+    for (let y = 1; y < this.h-1; y++) for (let x = 1; x < this.w-1; x++) {
+      if (this.map[y][x].char !== '~') continue;
+      for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++) { const nx=x+dx, ny=y+dy; if (nx>=0&&nx<this.w&&ny>=0&&ny<this.h&&this.map[ny][nx].char==='"') this.map[ny][nx] = {...TILES.SAND}; }
+    }
+  }
+  _addRoads() {
+    for (let i = 0; i < rand(2,4); i++) { const y = rand(10, this.h-10); for (let x = 0; x < this.w; x++) this.map[y][x] = {...TILES.PAVEMENT}; }
+    for (let i = 0; i < rand(2,4); i++) { const x = rand(10, this.w-10); for (let y = 0; y < this.h; y++) this.map[y][x] = {...TILES.PAVEMENT}; }
+  }
+  _addPaths() {
+    for (let i = 0; i < this.buildings.length; i++) {
+      for (let j = i+1; j < this.buildings.length; j++) {
+        const b1 = this.buildings[i], b2 = this.buildings[j];
+        const d = dist(b1.x+b1.w/2, b1.y+b1.h/2, b2.x+b2.w/2, b2.y+b2.h/2);
+        if (d > 25) continue;
+        let x = Math.floor(b1.x+b1.w/2), y = Math.floor(b1.y+b1.h/2);
+        const tx = Math.floor(b2.x+b2.w/2), ty = Math.floor(b2.y+b2.h/2);
+        while (x !== tx || y !== ty) {
+          if (Math.random() > 0.5) { if (x !== tx) x += (tx > x) ? 1 : -1; } else { if (y !== ty) y += (ty > y) ? 1 : -1; }
+          if (this.map[y] && this.map[y][x] && this.map[y][x].char === '"') this.map[y][x] = {...TILES.DIRT};
+        }
+      }
+    }
+  }
+  _addBridges() {
+    for (let y = 0; y < this.h; y++) {
+      for (let x = 0; x < this.w; x++) {
+        if (this.map[y][x].char !== '=') continue;
+        const adjWater = [[0,1],[0,-1],[1,0],[-1,0]].some(([dx,dy]) => { const nx=x+dx, ny=y+dy; return nx>=0&&nx<this.w&&ny>=0&&ny<this.h&&this.map[ny][nx].char==='~'; });
+        if (adjWater) {
+          [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dx,dy]) => { const nx=x+dx, ny=y+dy; if (nx>=0&&nx<this.w&&ny>=0&&ny<this.h&&this.map[ny][nx].char==='~') this.map[ny][nx]={...TILES.PAVEMENT}; });
+        }
+      }
+    }
+  }
+  _addFences() {
+    for (const b of this.buildings) {
+      if (Math.random() < 0.4) continue;
+      for (let dy = -1; dy <= b.h; dy++) {
+        for (let dx = -1; dx <= b.w; dx++) {
+          if (dy === -1 || dy === b.h || dx === -1 || dx === b.w) {
+            const nx = b.x + dx, ny = b.y + dy;
+            if (nx >= 0 && nx < this.w && ny >= 0 && ny < this.h) {
+              const t = this.map[ny][nx];
+              if (t.char === '"' && Math.random() < 0.7) {
+                this.map[ny][nx] = (dy === -1 || dy === b.h) ? {...TILES.FENCE_H} : {...TILES.FENCE};
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  _addParkingLots() {
+    for (const b of this.buildings) {
+      if (b.type !== 'shop' && b.type !== 'hospital' && b.type !== 'police') continue;
+      const side = randItem(['top','bottom','left','right']);
+      let px, py, pw, ph;
+      if (side === 'top') { px = b.x - 2; py = b.y - 4; pw = b.w + 4; ph = 4; }
+      else if (side === 'bottom') { px = b.x - 2; py = b.y + b.h; pw = b.w + 4; ph = 4; }
+      else if (side === 'left') { px = b.x - 6; py = b.y - 2; pw = 6; ph = b.h + 4; }
+      else { px = b.x + b.w; py = b.y - 2; pw = 6; ph = b.h + 4; }
+      for (let y = py; y < py + ph; y++) {
+        for (let x = px; x < px + pw; x++) {
+          if (x >= 0 && x < this.w && y >= 0 && y < this.h) {
+            if (this.map[y][x].char === '"') this.map[y][x] = {...TILES.PAVEMENT};
+          }
+        }
+      }
+      const carCount = rand(1, 3);
+      for (let i = 0; i < carCount; i++) {
+        const cx = rand(px + 1, px + pw - 2);
+        const cy = rand(py + 1, py + ph - 2);
+        if (cx >= 0 && cx < this.w && cy >= 0 && cy < this.h && this.map[cy][cx].char === '=') {
+          this.map[cy][cx] = {...TILES.CAR};
+        }
+      }
+    }
+  }
+  _addBuildings(count) {
+    this.buildings = [];
+    const types = Object.keys(BUILDING_NAMES);
+    for (let i = 0; i < count; i++) {
+      let a = 0;
+      while (a < 50) {
+        const x = rand(5, this.w-20), y = rand(5, this.h-20), w = rand(6,12), h = rand(5,10);
+        if (!this._canPlaceBuilding(x,y,w,h)) { a++; continue; }
+        const type = randItem(types);
+        this._placeBuilding(x,y,w,h,type); this.buildings.push({x,y,w,h,type}); break;
+      }
+    }
+  }
+  _canPlaceBuilding(x,y,w,h) {
+    for (let dy=-2; dy<h+2; dy++) for (let dx=-2; dx<w+2; dx++) {
+      const nx=x+dx, ny=y+dy; if (nx<0||nx>=this.w||ny<0||ny>=this.h) return false;
+      const t = this.map[ny][nx]; if ((t.blocks&&t.char!=='T') || t.char==='~') return false;
+    }
+    return true;
+  }
+  _placeBuilding(x,y,w,h,type) {
+    const sides = ['top','bottom','left','right'];
+    const doorSide = randItem(sides);
+    let doorX = 0, doorY = 0;
+    switch(doorSide) {
+      case 'top': doorX = x + Math.floor(w/2); doorY = y; break;
+      case 'bottom': doorX = x + Math.floor(w/2); doorY = y + h - 1; break;
+      case 'left': doorX = x; doorY = y + Math.floor(h/2); break;
+      case 'right': doorX = x + w - 1; doorY = y + Math.floor(h/2); break;
+    }
+    for (let dy=0; dy<h; dy++) for (let dx=0; dx<w; dx++) {
+      const isDoor = (x+dx === doorX && y+dy === doorY);
+      if (dy===0 || dy===h-1 || dx===0 || dx===w-1) {
+        if (isDoor) this.map[y+dy][x+dx] = {...TILES.DOOR_C};
+        else if (Math.random() < 0.3) this.map[y+dy][x+dx] = {...TILES.WINDOW};
+        else this.map[y+dy][x+dx] = {...TILES.WALL};
+      } else {
+        this.map[y+dy][x+dx] = {...TILES.FLOOR};
+        if (Math.random() < 0.12) {
+          const furn = randItem([TILES.TABLE, TILES.BED, TILES.SHELF]);
+          this.map[y+dy][x+dx] = {...furn};
+        }
+      }
+    }
+  }
+  _addBushes() {
+    for (let y=1; y<this.h-1; y++) for (let x=1; x<this.w-1; x++) {
+      if (this.map[y][x].char !== '"') continue;
+      const nearTree = [[0,1],[0,-1],[1,0],[-1,0]].some(([dx,dy]) => { const nx=x+dx, ny=y+dy; return nx>=0&&nx<this.w&&ny>=0&&ny<this.h&&this.map[ny][nx].char==='T'; });
+      if (nearTree && Math.random() < 0.4) this.map[y][x] = {...TILES.BUSH};
+    }
+  }
+  _addPlayerShelter() { for (let a=0; a<100; a++) { const x=rand(10,this.w-10), y=rand(10,this.h-10); if (this.map[y][x].char==='"' && !this.map[y][x].blocks) { this.spawn={x,y}; return; } } this.spawn={x:10,y:10}; }
+  findSpawn() { return this.spawn||{x:10,y:10}; }
+  randomOpenFloor() { for (let a=0; a<200; a++) { const x=rand(0,this.w-1), y=rand(0,this.h-1); const t=this.map[y][x]; if (!t.blocks && t.char!=='~' && !this.isInsideBuilding(x,y)) return {x,y}; } return {x:10,y:10}; }
+  randomBuildingFloor() { if (!this.buildings||this.buildings.length===0) return this.randomOpenFloor(); const b=randItem(this.buildings); return {x:rand(b.x+1,b.x+b.w-2), y:rand(b.y+1,b.y+b.h-2)}; }
+  isInsideBuilding(x,y) { for (const b of this.buildings) { if (x>=b.x+1 && x<b.x+b.w-1 && y>=b.y+1 && y<b.y+b.h-1) return true; } return false; }
+  getBuildingAt(x,y) { for (const b of this.buildings) { if (x>=b.x && x<b.x+b.w && y>=b.y && y<b.y+b.h) return b; } return null; }
+  isPassable(x,y) { if (x<0 || x>=this.w || y<0 || y>=this.h) return false; return !this.map[y][x].blocks; }
+  isItemSpawnable(x,y) { if (x<0 || x>=this.w || y<0 || y>=this.h) return false; const t=this.map[y][x]; return !t.blocks && t.char !== '~' && t.char !== 'T' && t.char !== 'h' && t.char !== 'c'; }
+  getDoorSide(b) {
+    for (let dx=0; dx<b.w; dx++) { if (this.map[b.y][b.x+dx].char==='+') return 'top'; if (this.map[b.y+b.h-1][b.x+dx].char==='+') return 'bottom'; }
+    for (let dy=0; dy<b.h; dy++) { if (this.map[b.y+dy][b.x].char==='+') return 'left'; if (this.map[b.y+dy][b.x+b.w-1].char==='+') return 'right'; }
+    return 'bottom';
+  }
+}
+
+class FOV {
+  constructor(map, radius) { this.map = map; this.radius = radius; this.w = map[0].length; this.h = map.length; this.reset(); }
+  reset() { this.visible = Array(this.h).fill(null).map(() => Array(this.w).fill(false)); this.explored = Array(this.h).fill(null).map(() => Array(this.w).fill(false)); }
+  compute(px, py) {
+    for (let y=0; y<this.h; y++) for (let x=0; x<this.w; x++) this.visible[y][x] = false;
+    this.visible[py][px] = true; this.explored[py][px] = true;
+    for (let i=0; i<8; i++) this._castOctant(px, py, 1, 1.0, 0.0, this._mult[i][0], this._mult[i][1], this._mult[i][2], this._mult[i][3]);
+  }
+  _mult = [[1,0,0,1],[0,1,1,0],[0,-1,1,0],[-1,0,0,1],[-1,0,0,-1],[0,-1,-1,0],[0,1,-1,0],[1,0,0,-1]];
+  _castOctant(cx, cy, row, startSlope, endSlope, xx, xy, yx, yy) {
+    if (startSlope < endSlope) return;
+    let nextStart = startSlope;
+    for (let i=row; i<=this.radius; i++) {
+      let blocked = false;
+      for (let dx=-i, dy=-i; dx<=0; dx++) {
+        const x = cx + dx*xx + dy*xy;
+        const y = cy + dx*yx + dy*yy;
+        const lSlope = (dx-0.5)/(dy+0.5);
+        const rSlope = (dx+0.5)/(dy-0.5);
+        if (rSlope > nextStart) continue;
+        if (lSlope < endSlope) break;
+        if (x>=0 && x<this.w && y>=0 && y<this.h) {
+          if (dist(cx,cy,x,y) <= this.radius) { this.visible[y][x] = true; this.explored[y][x] = true; }
+        }
+        const opaque = (x<0||x>=this.w||y<0||y>=this.h) || this.map[y][x].opaque;
+        if (blocked) { if (!opaque) { blocked = false; nextStart = rSlope; } }
+        else { if (opaque && i<this.radius) { blocked = true; this._castOctant(cx,cy,i+1,nextStart,lSlope,xx,xy,yx,yy); nextStart = rSlope; } }
+      }
+      if (blocked) break;
+    }
+  }
+}
+
+class WorldItem {
+  constructor(x,y,type) { this.x=x; this.y=y; this.type=type; const info=ITEMS[type]; this.char=info.char; this.color=info.color; this.name=info.name; }
+}
+
+class Entity {
+  constructor(x,y,char,color,name,hp,damage,speed,desc='') { this.x=x; this.y=y; this.char=char; this.color=color; this.name=name; this.maxHp=hp; this.hp=hp; this.damage=damage; this.speed=speed; this.desc=desc; this.armor={torso:null, legs:null, feet:null, head:null}; this.alerted=false; }
+  isAlive() { return this.hp > 0; }
+  takeDamage(dmg) { let resist=0; for (const s in this.armor) { const it=this.armor[s]; if (it) resist += (ITEMS[it].bash_resist||0)+(ITEMS[it].cut_resist||0)+(ITEMS[it].pierce_resist||0); } dmg = Math.max(1, dmg - Math.floor(resist/2)); this.hp = Math.max(0, this.hp - dmg); return dmg; }
+  heal(amt) { this.hp = Math.min(this.maxHp, this.hp + amt); }
+}
+
+class Inventory {
+  constructor(capacity=40) { this.items=[]; this.selected=0; this.capacity=capacity; this.weight=0; }
+  add(itemType) { const existing=this.items.find(i=>i.type===itemType); const info=ITEMS[itemType]; if (existing && (info.type==='food'||info.type==='medkit')) existing.count++; else this.items.push({type:itemType, count:1}); this._recalc(); }
+  removeAt(idx) { if (idx<0||idx>=this.items.length) return null; const item=this.items[idx]; item.count--; if (item.count<=0) { this.items.splice(idx,1); if (this.selected>=this.items.length) this.selected=Math.max(0,this.items.length-1); } this._recalc(); return item.type; }
+  removeSelected() { return this.removeAt(this.selected); }
+  getSelected() { return this.items.length>0 ? this.items[this.selected] : null; }
+  selectNext() { if (this.items.length>0) this.selected = (this.selected+1)%this.items.length; }
+  selectPrev() { if (this.items.length>0) this.selected = (this.selected-1+this.items.length)%this.items.length; }
+  _recalc() { this.weight = this.items.reduce((s,i) => s + (ITEMS[i.type].weight||0)*i.count, 0); }
+  totalVolume() { return this.items.reduce((s,i) => s + (ITEMS[i.type].volume||0)*i.count, 0); }
+  count(type) { const item = this.items.find(i=>i.type===type); return item ? item.count : 0; }
+}
+
+class Game {
+  constructor() {
+    this.canvas = document.getElementById('game');
+    this.ctx = this.canvas.getContext('2d');
+    this.container = document.getElementById('game-container');
+    this.fovEnabled = true; this.uiState = 'game';
+    this.turn = 0; this.messages = []; this.wielded = null;
+    this.hunger = 0; this.thirst = 0; this.fatigue = 0;
+    this.pendingConfirm = null; this.currentLevel = 'surface'; this.levels = {};
+    this.noise = 0; this.noiseRadius = 0;
+    this.time = 480; this.weather = 'clear'; this.weatherTimer = 0;
+    this.viewW = 64; this.viewH = 38;
+    this.debugStack = [];
+    this.containers = {};
+    this.craftSelected = 0;
+    this.init(); this.bindInput(); this.loop(0);
+    window.addEventListener('resize', () => this.onResize());
+  }
+  onResize() {
+    const rect = this.container.getBoundingClientRect();
+    this.viewW = Math.max(1, Math.floor(rect.width / TILE_W));
+    this.viewH = Math.max(1, Math.floor(rect.height / TILE_H));
+    this.canvas.width = this.viewW * TILE_W;
+    this.canvas.height = this.viewH * TILE_H;
+    this.render();
+  }
+  init() {
+    this.wielded = null; this.hunger = 120; this.thirst = 120; this.fatigue = 0; this.noise = 0; this.noiseRadius = 0; this.time = 480; this.weather = 'clear'; this.weatherTimer = 0;
+    this.currentLevel = 'surface'; this.levels = {}; this.containers = {}; this.craftSelected = 0;
+    this.og = new OverworldGenerator(MAP_W, MAP_H);
+    this.map = this.og.generate(); this.levels['surface'] = { map: this.map, og: this.og };
+    const spawn = this.og.findSpawn();
+    this.player = new Entity(spawn.x, spawn.y, '@', COLORS.player, 'Игрок', 100, 3, 1, 'Выживший');
+    this.enemies = [];
+    for (let i=0; i<5; i++) { const pos=this.og.randomOpenFloor(); this.enemies.push(new Entity(pos.x, pos.y, 'Z', COLORS.enemy, 'Зомби', 25, 5, 1, 'Медленный ходячий')); }
+    for (let i=0; i<3; i++) { const pos=this.og.randomOpenFloor(); this.enemies.push(new Entity(pos.x, pos.y, 'z', COLORS.enemy_fast, 'Бегун', 15, 4, 2, 'Быстрый зомби')); }
+    for (let i=0; i<2; i++) { const pos=this.og.randomOpenFloor(); this.enemies.push(new Entity(pos.x, pos.y, 'O', COLORS.enemy_fat, 'Толстяк', 40, 8, 1, 'Тяжёлый зомби')); }
+    for (let i=0; i<4; i++) { const pos=this.og.randomOpenFloor(); this.enemies.push(new Entity(pos.x, pos.y, 'd', COLORS.dog, 'Собака', 12, 3, 3, 'Дикая собака')); }
+    for (let i=0; i<2; i++) { const pos=this.og.randomOpenFloor(); this.enemies.push(new Entity(pos.x, pos.y, 'D', COLORS.bear, 'Медведь', 30, 10, 1, 'Большой медведь')); }
+    for (let i=0; i<2; i++) { const pos=this.og.randomOpenFloor(); this.enemies.push(new Entity(pos.x, pos.y, 'h', COLORS.survivor, 'Выживший', 50, 4, 1, 'Другой выживший')); }
+    this.items = []; this._spawnItems();
+    this.inventory = new Inventory();
+    this.fov = new FOV(this.map, FOV_RADIUS);
+    this.fov.compute(this.player.x, this.player.y);
+    this.onResize();
+    this.log('Мир ASCII Sandbox. Зомби, леса, здания, реки, мосты, заборы. Выживай.');
+    this.log('HJKL — движение, YUBN — диагонали, S — разбить, G — подобрать, C — крафт, E — использовать/спать.');
+    this.updateUI();
+  }
+  _spawnItems() {
+    const surfaceLoot = Object.keys(ITEMS);
+    for (let i=0; i<30; i++) { const pos=this.og.randomOpenFloor(); if (this.og.isItemSpawnable(pos.x,pos.y)) this.items.push(new WorldItem(pos.x, pos.y, randItem(surfaceLoot))); }
+    for (let i=0; i<20; i++) { const pos=this.og.randomBuildingFloor(); if (this.og.isItemSpawnable(pos.x,pos.y)) this.items.push(new WorldItem(pos.x, pos.y, randItem(surfaceLoot))); }
+    for (const b of this.og.buildings) {
+      const loot = BUILDING_LOOT[b.type];
+      if (!loot) continue;
+      const count = rand(2, 5);
+      for (let i=0; i<count; i++) {
+        let itemType = null;
+        let roll = Math.random(), cum = 0;
+        for (let j=0; j<loot.items.length; j++) { cum += loot.weights[j]; if (roll <= cum) { itemType = loot.items[j]; break; } }
+        if (itemType) { const pos = {x: rand(b.x+1,b.x+b.w-2), y: rand(b.y+1,b.y+b.h-2)}; if (this.og.isItemSpawnable(pos.x,pos.y)) this.items.push(new WorldItem(pos.x, pos.y, itemType)); }
+      }
+    }
+    // Place furniture containers
+    for (let y=0; y<MAP_H; y++) {
+      for (let x=0; x<MAP_W; x++) {
+        const t = this.map[y][x];
+        if (t.char === 't' || t.char === 'h') {
+          if (Math.random() < 0.4) {
+            const cont = {name: t.char==='t'?'Стол':'Шкаф', items: []};
+            const itemCount = rand(0, 2);
+            for (let i=0; i<itemCount; i++) cont.items.push(randItem(FURNITURE_LOOT));
+            if (cont.items.length > 0) this.containers[x+','+y] = cont;
+          }
+        }
+      }
+    }
+  }
+  getViewport() {
+    return {
+      x: this.player.x - Math.floor(this.viewW/2),
+      y: this.player.y - Math.floor(this.viewH/2),
+      w: this.viewW, h: this.viewH
+    };
+  }
+  openInventory() { this.uiState='inventory'; document.getElementById('inv-modal').classList.add('open'); this.renderInventory(); }
+  closeInventory() { this.uiState='game'; document.getElementById('inv-modal').classList.remove('open'); }
+  openHelp() { this.uiState='help'; document.getElementById('help-modal').classList.add('open'); this.renderHelp(); }
+  closeHelp() { this.uiState='game'; document.getElementById('help-modal').classList.remove('open'); }
+  openLogFull() { this.uiState='logfull'; document.getElementById('log-full-modal').classList.add('open'); this.renderLogFull(); }
+  closeLogFull() { this.uiState='game'; document.getElementById('log-full-modal').classList.remove('open'); }
+  openChar() { this.uiState='char'; document.getElementById('char-modal').classList.add('open'); this.renderChar(); }
+  closeChar() { this.uiState='game'; document.getElementById('char-modal').classList.remove('open'); }
+  openDebug() { this.uiState='debug'; this.debugStack = []; document.getElementById('debug-modal').classList.add('open'); this.renderDebug(); }
+  closeDebug() { this.uiState='game'; this.debugStack = []; document.getElementById('debug-modal').classList.remove('open'); }
+  debugBack() { if (this.debugStack.length > 0) { this.debugStack.pop(); this.renderDebug(); } }
+  openCraft() { this.uiState='craft'; this.craftSelected = 0; document.getElementById('craft-modal').classList.add('open'); this.renderCraft(); }
+  closeCraft() { this.uiState='game'; document.getElementById('craft-modal').classList.remove('open'); }
+  showConfirm(text, onYes, onNo) { this.uiState='confirm'; this.pendingConfirm={yes:onYes, no:onNo||(()=>{})}; document.getElementById('confirm-modal').classList.add('open'); document.getElementById('confirm-text').textContent = text; }
+  closeConfirm() { this.uiState='game'; document.getElementById('confirm-modal').classList.remove('open'); this.pendingConfirm=null; }
+  renderInventory() {
+    const list = document.getElementById('inv-list'); list.innerHTML = '';
+    if (this.inventory.items.length === 0) { list.innerHTML = '<div class="modal-empty">Инвентарь пуст</div>'; return; }
+    this.inventory.items.forEach((item, i) => {
+      const li = document.createElement('li'); li.className = i===this.inventory.selected ? 'selected' : '';
+      const info = ITEMS[item.type];
+      const w = info.weight ? (info.weight/1000).toFixed(1)+'кг' : '';
+      const vol = info.volume ? info.volume+'л' : '';
+      const dmg = info.bash_dmg ? 'Баш'+info.bash_dmg : '';
+      const cut = info.cut_dmg ? 'Пор'+info.cut_dmg : '';
+      const arm = info.bash_resist ? 'Зщ'+(info.bash_resist+info.cut_resist) : '';
+      const stats = [dmg, cut, arm].filter(Boolean).join(' ');
+      li.innerHTML = '<span><span style="color:'+(COLORS[info.color]||'#fff')+'">'+info.char+'</span> <span class="item-name">'+info.name+'</span> <span class="item-desc">'+info.desc+'</span></span><span class="item-stats">'+stats+' '+w+' '+vol+' x'+item.count+'</span>';
+      list.appendChild(li);
+    });
+  }
+  renderHelp() {
+    const body = document.getElementById('help-body');
+    body.innerHTML = '<div class="section"><h4>Движение</h4>' +
+      '<div class="key-row"><span>Стрелки / Numpad 1-9</span><span>8 направлений + диагонали</span></div>' +
+      '<div class="key-row"><span>Numpad 5 / .</span><span>Подождать 1 ход</span></div>' +
+      '</div><div class="section"><h4>Действия</h4>' +
+      '<div class="key-row"><span>G ,</span><span>Подобрать предмет</span></div>' +
+      '<div class="key-row"><span>I</span><span>Инвентарь</span></div>' +
+      '<div class="key-row"><span>E</span><span>Использовать / пить / спать на кровати</span></div>' +
+      '<div class="key-row"><span>S</span><span>Разбить (окно/дверь/шкаф)</span></div>' +
+      '<div class="key-row"><span>O</span><span>Открыть дверь</span></div>' +
+      '<div class="key-row"><span>Enter</span><span>Взаимодействовать (дверь/контейнер)</span></div>' +
+      '<div class="key-row"><span>C</span><span>Крафт</span></div>' +
+      '</div><div class="section"><h4>Информация</h4>' +
+      '<div class="key-row"><span>@</span><span>Информация о персонаже</span></div>' +
+      '<div class="key-row"><span>P</span><span>Полный лог</span></div>' +
+      '<div class="key-row"><span>H</span><span>Эта помощь</span></div>' +
+      '<div class="key-row"><span>`</span><span>Меню отладки</span></div>' +
+      '<div class="key-row"><span>F</span><span>Вкл/выкл FOV</span></div>' +
+      '<div class="key-row"><span>R</span><span>Новый мир</span></div>' +
+      '</div><div class="section"><h4>Инвентарь</h4>' +
+      '<div class="key-row"><span>↑↓</span><span>Выбор предмета</span></div>' +
+      '<div class="key-row"><span>Enter</span><span>Использовать (еда/аптечка)</span></div>' +
+      '<div class="key-row"><span>W</span><span>Экипировать оружие</span></div>' +
+      '<div class="key-row"><span>E</span><span>Надеть броню</span></div>' +
+      '<div class="key-row"><span>D</span><span>Выбросить</span></div>' +
+      '</div>';
+  }
+  renderLogFull() {
+    const list = document.getElementById('log-full-list');
+    list.innerHTML = this.messages.map(m => '<div style="padding:2px 0;border-bottom:1px solid #1a1a1a">> '+m+'</div>').join('');
+  }
+  renderChar() {
+    const body = document.getElementById('char-body');
+    let resist = 0; for (const s in this.player.armor) { const it=this.player.armor[s]; if (it) resist += (ITEMS[it].bash_resist||0)+(ITEMS[it].cut_resist||0)+(ITEMS[it].pierce_resist||0); }
+    const weapon = this.wielded ? ITEMS[this.wielded] : null;
+    let html = '<div class="section"><h4>Основное</h4>';
+    html += '<div class="stat-row"><span class="label">Имя</span><span class="val">'+this.player.name+'</span></div>';
+    html += '<div class="stat-row"><span class="label">HP</span><span class="val '+((this.player.hp/this.player.maxHp)<0.25?'bad':(this.player.hp/this.player.maxHp)<0.5?'warn':'')+'">'+this.player.hp+'/'+this.player.maxHp+'</span></div>';
+    html += '<div class="stat-row"><span class="label">Урон</span><span class="val">'+(weapon ? 'Баш '+(this.player.damage+(weapon.bash_dmg||0))+', Пор '+(weapon.cut_dmg||0) : 'Баш '+this.player.damage)+'</span></div>';
+    html += '<div class="stat-row"><span class="label">Точность</span><span class="val">'+(weapon ? (weapon.to_hit>=0?'+':'')+weapon.to_hit : '0')+'</span></div>';
+    html += '</div><div class="section"><h4>Броня</h4>';
+    html += '<div class="stat-row"><span class="label">Общая защита</span><span class="val">'+resist+'</span></div>';
+    html += '<div class="stat-row"><span class="label">Торс</span><span class="val">'+(this.player.armor.torso ? ITEMS[this.player.armor.torso].name+' (Зщ '+ITEMS[this.player.armor.torso].bash_resist+'/'+ITEMS[this.player.armor.torso].cut_resist+'/'+ITEMS[this.player.armor.torso].pierce_resist+')' : 'нет')+'</span></div>';
+    html += '<div class="stat-row"><span class="label">Ноги</span><span class="val">'+(this.player.armor.legs ? ITEMS[this.player.armor.legs].name+' (Зщ '+ITEMS[this.player.armor.legs].bash_resist+'/'+ITEMS[this.player.armor.legs].cut_resist+'/'+ITEMS[this.player.armor.legs].pierce_resist+')' : 'нет')+'</span></div>';
+    html += '<div class="stat-row"><span class="label">Голова</span><span class="val">'+(this.player.armor.head ? ITEMS[this.player.armor.head].name+' (Зщ '+ITEMS[this.player.armor.head].bash_resist+'/'+ITEMS[this.player.armor.head].cut_resist+'/'+ITEMS[this.player.armor.head].pierce_resist+')' : 'нет')+'</span></div>';
+    html += '<div class="stat-row"><span class="label">Обувь</span><span class="val">'+(this.player.armor.feet ? ITEMS[this.player.armor.feet].name+' (Зщ '+ITEMS[this.player.armor.feet].bash_resist+'/'+ITEMS[this.player.armor.feet].cut_resist+'/'+ITEMS[this.player.armor.feet].pierce_resist+')' : 'нет')+'</span></div>';
+    html += '</div><div class="section"><h4>Инвентарь</h4>';
+    html += '<div class="stat-row"><span class="label">Вес</span><span class="val">'+(this.inventory.weight/1000).toFixed(1)+'кг</span></div>';
+    html += '<div class="stat-row"><span class="label">Объём</span><span class="val">'+this.inventory.totalVolume()+'/'+this.inventory.capacity+'л</span></div>';
+    html += '</div>';
+    body.innerHTML = html;
+  }
+  renderDebug() {
+    const body = document.getElementById('debug-body');
+    const backBtn = document.getElementById('debug-back');
+    backBtn.className = this.debugStack.length > 0 ? 'show' : '';
+    const menu = this.debugStack.length > 0 ? this.debugStack[this.debugStack.length-1] : 'main';
+    if (menu === 'main') {
+      const cats = [
+        {key:'spawn_items',title:'Спавн предметов',desc:'Создать предмет рядом с игроком'},
+        {key:'spawn_mobs',title:'Спавн сущностей',desc:'Создать зомби/врага рядом'},
+        {key:'weather',title:'Управление погодой',desc:'Изменить текущую погоду'},
+        {key:'time',title:'Управление временем',desc:'Перемотать время суток'},
+        {key:'heal',title:'Лечение',desc:'Восстановить HP игрока'},
+        {key:'teleport',title:'Телепорт',desc:'Переместить игрока на случайную позицию'},
+        {key:'kill_all',title:'Убить всех',desc:'Уничтожить всех врагов на карте'},
+        {key:'reveal',title:'Открыть карту',desc:'Видеть всю карту без FOV'}
+      ];
+      body.innerHTML = cats.map(c => '<div class="debug-row" onclick="game.debugAction(\''+c.key+'\')"><span class="title">'+c.title+'</span><span class="desc"> — '+c.desc+'</span></div>').join('');
+    } else if (menu === 'spawn_items') {
+      const items = Object.keys(ITEMS);
+      body.innerHTML = items.map(k => '<div class="debug-row" onclick="game.debugSpawnItem(\''+k+'\')"><span class="title">'+ITEMS[k].char+' '+ITEMS[k].name+'</span><span class="desc">'+ITEMS[k].desc+'</span></div>').join('');
+    } else if (menu === 'spawn_mobs') {
+      const mobs = [
+        {char:'Z',color:'enemy',name:'Зомби',hp:25,dmg:5,spd:1},
+        {char:'z',color:'enemy_fast',name:'Бегун',hp:15,dmg:4,spd:2},
+        {char:'O',color:'enemy_fat',name:'Толстяк',hp:40,dmg:8,spd:1}
+      ];
+      body.innerHTML = mobs.map(m => '<div class="debug-row" onclick="game.debugSpawnMob(\''+m.char+'\',\''+m.color+'\',\''+m.name+'\','+m.hp+','+m.dmg+','+m.spd+')"><span class="title">'+m.char+' '+m.name+'</span><span class="desc">HP '+m.hp+' Урон '+m.dmg+'</span></div>').join('');
+    } else if (menu === 'weather') {
+      const weathers = ['clear','fog','rain'];
+      const names = {clear:'Ясно',fog:'Туман',rain:'Дождь'};
+      body.innerHTML = weathers.map(w => '<div class="debug-row" onclick="game.debugSetWeather(\''+w+'\')"><span class="title">'+names[w]+'</span><span class="desc">'+(w===this.weather?' (текущая)':'')+'</span></div>').join('');
+    } else if (menu === 'time') {
+      const times = [0,360,480,720,1080,1320];
+      const labels = {0:'Полночь (00:00)',360:'Рассвет (06:00)',480:'Утро (08:00)',720:'Полдень (12:00)',1080:'Вечер (18:00)',1320:'Ночь (22:00)'};
+      body.innerHTML = times.map(t => '<div class="debug-row" onclick="game.debugSetTime('+t+')"><span class="title">'+labels[t]+'</span></div>').join('');
+    } else if (menu === 'heal') {
+      body.innerHTML = '<div class="debug-row" onclick="game.debugHeal(100)"><span class="title">Полное исцеление</span><span class="desc">Восстановить HP до максимума</span></div>' +
+        '<div class="debug-row" onclick="game.debugHeal(50)"><span class="title">+50 HP</span></div>' +
+        '<div class="debug-row" onclick="game.debugHeal(20)"><span class="title">+20 HP</span></div>';
+    }
+  }
+  debugAction(key) {
+    if (key === 'spawn_items' || key === 'spawn_mobs' || key === 'weather' || key === 'time' || key === 'heal') {
+      this.debugStack.push(key); this.renderDebug();
+    } else if (key === 'teleport') {
+      const pos = this.og.randomOpenFloor(); this.player.x = pos.x; this.player.y = pos.y; this.log('[DEBUG] Телепорт на '+pos.x+','+pos.y); this.closeDebug(); this.fov.compute(this.player.x, this.player.y); this.render(); this.updateUI();
+    } else if (key === 'kill_all') {
+      const count = this.enemies.length; this.enemies = []; this.log('[DEBUG] Убито '+count+' врагов'); this.closeDebug(); this.render();
+    } else if (key === 'reveal') {
+      this.fovEnabled = false; this.log('[DEBUG] FOV отключён'); this.closeDebug(); this.render();
+    }
+  }
+  debugSpawnItem(type) { this.items.push(new WorldItem(this.player.x, this.player.y, type)); this.log('[DEBUG] Спавн: '+ITEMS[type].name); this.renderDebug(); this.render(); }
+  debugSpawnMob(ch, col, name, hp, dmg, spd) { this.enemies.push(new Entity(this.player.x+rand(-2,2), this.player.y+rand(-2,2), ch, COLORS[col], name, hp, dmg, spd, name)); this.log('[DEBUG] Спавн: '+name); this.renderDebug(); this.render(); }
+  debugSetWeather(w) { this.weather = w; this.log('[DEBUG] Погода: '+w); this.renderDebug(); this.updateUI(); this.render(); }
+  debugSetTime(t) { this.time = t; this.log('[DEBUG] Время: '+Math.floor(t/60)+':'+(t%60<10?'0':'')+(t%60)); this.renderDebug(); this.updateUI(); this.render(); }
+  debugHeal(amt) { this.player.heal(amt); this.log('[DEBUG] Исцеление +'+amt+' HP'); this.renderDebug(); this.updateUI(); this.render(); }
+  renderCraft() {
+    const list = document.getElementById('craft-list'); list.innerHTML = '';
+    RECIPES.forEach((r, i) => {
+      const canCraft = this.canCraft(r);
+      const li = document.createElement('li'); li.className = i===this.craftSelected ? 'selected' : '';
+      li.innerHTML = '<span><span class="item-name">'+r.name+'</span> <span class="item-desc">'+r.desc+'</span></span>'+(canCraft ? '<span class="good">Можно</span>' : '<span class="bad">Нет материалов</span>');
+      list.appendChild(li);
+    });
+  }
+  canCraft(recipe) {
+    for (const [item, count] of Object.entries(recipe.req)) {
+      const has = this.inventory.count(item);
+      if (has < count) return false;
+    }
+    if (recipe.tool) {
+      const hasTool = this.inventory.items.some(inv => inv.type === recipe.tool) || this.wielded === recipe.tool;
+      if (!hasTool) return false;
+    }
+    return true;
+  }
+  craftItem(idx) {
+    const r = RECIPES[idx];
+    if (!this.canCraft(r)) { this.log('Недостаточно материалов для ' + r.name); return; }
+    for (const [item, count] of Object.entries(r.req)) {
+      for (let i = 0; i < count; i++) {
+        const invIdx = this.inventory.items.findIndex(inv => inv.type === item);
+        if (invIdx !== -1) this.inventory.removeAt(invIdx);
+      }
+    }
+    for (let i = 0; i < r.result.count; i++) {
+      this.inventory.add(r.result.type);
+    }
+    this.log('Ты создаёшь ' + ITEMS[r.result.type].name + '!');
+    this.renderCraft(); this.updateUI();
+  }
+  bindInput() {
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toLowerCase(), code = e.code;
+      if (this.uiState === 'confirm') { e.preventDefault(); if (key==='y' && this.pendingConfirm) { this.pendingConfirm.yes(); this.closeConfirm(); } else if (key==='n' && this.pendingConfirm) { this.pendingConfirm.no(); this.closeConfirm(); } return; }
+      if (this.uiState === 'inventory') { this.handleInventoryInput(e); return; }
+      if (this.uiState === 'craft') { this.handleCraftInput(e); return; }
+      if (this.uiState === 'help') { e.preventDefault(); if (key==='escape'||key==='h') this.closeHelp(); return; }
+      if (this.uiState === 'logfull') { e.preventDefault(); if (key==='escape'||key==='p') this.closeLogFull(); return; }
+      if (this.uiState === 'char') { e.preventDefault(); if (key==='escape'||key==='@') this.closeChar(); return; }
+      if (this.uiState === 'debug') { e.preventDefault(); if (key==='escape'||key==='`') { this.closeDebug(); return; } if (key==='backspace') { this.debugBack(); return; } return; }
+      const numpad = {'Numpad8':[0,-1], 'Numpad2':[0,1], 'Numpad4':[-1,0], 'Numpad6':[1,0], 'Numpad7':[-1,-1], 'Numpad9':[1,-1], 'Numpad1':[-1,1], 'Numpad3':[1,1], 'Numpad5':[0,0]};
+      if (code in numpad) { e.preventDefault(); const [dx,dy] = numpad[code]; if (dx===0&&dy===0) this.waitTurn(); else this.movePlayer(dx,dy); return; }
+      let dx=0, dy=0, acted=false;
+      switch(key) {
+        case 'arrowup': dy=-1; acted=true; break;
+        case 'arrowdown': dy=1; acted=true; break;
+        case 'arrowleft': dx=-1; acted=true; break;
+        case 'arrowright': dx=1; acted=true; break;
+        case 'f': this.fovEnabled=!this.fovEnabled; this.log('FOV '+(this.fovEnabled?'вкл':'выкл')+'.'); this.render(); e.preventDefault(); return;
+        case 'r': this.log('Новый мир...'); this.init(); e.preventDefault(); return;
+        case 'g': case ',': this.pickupItem(); e.preventDefault(); return;
+        case 'i': this.openInventory(); e.preventDefault(); return;
+        case 'o': this.openDoor(); e.preventDefault(); return;
+        case 'c': this.openCraft(); e.preventDefault(); return;
+        case 'e': this.handleE(); e.preventDefault(); return;
+        case '.': case '5': this.waitTurn(); e.preventDefault(); return;
+        case 'enter': this.interactTile(); e.preventDefault(); return;
+        case 's': this.smashTile(); e.preventDefault(); return;
+        case 'h': this.openHelp(); e.preventDefault(); return;
+        case 'p': this.openLogFull(); e.preventDefault(); return;
+        case '@': this.openChar(); e.preventDefault(); return;
+        case '`': this.openDebug(); e.preventDefault(); return;
+      }
+      if (acted) { e.preventDefault(); this.movePlayer(dx, dy); }
+    });
+  }
+  handleInventoryInput(e) { e.preventDefault(); const key=e.key.toLowerCase(), code=e.code; switch(code) { case 'ArrowUp': this.inventory.selectPrev(); this.renderInventory(); return; case 'ArrowDown': this.inventory.selectNext(); this.renderInventory(); return; } switch(key) { case 'escape': case 'i': this.closeInventory(); return; case 'enter': this.useItemFromInventory(); this.renderInventory(); return; case 'd': this.dropItemFromInventory(); this.renderInventory(); return; case 'w': this.wieldItemFromInventory(); this.renderInventory(); return; case 'e': this.equipArmorFromInventory(); this.renderInventory(); return; } }
+  handleCraftInput(e) { e.preventDefault(); const key=e.key.toLowerCase(); switch(key) { case 'escape': case 'c': this.closeCraft(); return; case 'arrowup': this.craftSelected = (this.craftSelected - 1 + RECIPES.length) % RECIPES.length; this.renderCraft(); return; case 'arrowdown': this.craftSelected = (this.craftSelected + 1) % RECIPES.length; this.renderCraft(); return; case 'enter': this.craftItem(this.craftSelected); this.renderCraft(); return; } }
+  handleE() {
+    if (!this.player.isAlive()) { this.log('☠ Ты погиб. Нажми R для новой игры.'); return; }
+    if (this.map[this.player.y][this.player.x].char === 'b') { this.sleepOnBed(); return; }
+    if (this.isNearWater()) { this.showConfirm('Рядом грязная вода. Попить? Шанс заболеть.', () => { this.thirst=Math.max(0,this.thirst-80); this.log('Ты пьёшь грязную воду. Жажда утолена.'); if (Math.random()<0.25) this.log('Ты чувствуешь недомогание...'); this.updateUI(); this.endTurn(); }, () => { this.log('Ты передумал пить.'); }); }
+    else { this.useItem(); }
+  }
+  isNearWater() { const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; for (const [dx,dy] of dirs) { const nx=this.player.x+dx, ny=this.player.y+dy; if (nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H&&this.map[ny][nx].char==='~') return true; } return false; }
+  sleepOnBed() {
+    this.showConfirm('Лечь спать на кровати? Восстановит 20 HP и сбросит усталость, но пройдёт ~2 часа.', () => {
+      this.player.heal(20);
+      this.fatigue = 0;
+      this.time += 120;
+      if (this.time >= 1440) this.time -= 1440;
+      this.turn += 50;
+      this.hunger = Math.min(1000, this.hunger + 100);
+      this.thirst = Math.min(1000, this.thirst + 150);
+      for (let i=0; i<50; i++) {
+        this.time += 2;
+        if (this.time >= 1440) this.time -= 1440;
+      }
+      this.log('Ты просыпаешься отдохнувшим (+20 HP, усталость сброшена).');
+      this.updateUI(); this.render();
+    }, () => { this.log('Ты решил не спать.'); });
+  }
+  interactTile() {
+    if (!this.player.isAlive()) return;
+    const dirs = [[0,1],[0,-1],[1,0],[-1,0]];
+    for (const [dx,dy] of dirs) {
+      const nx = this.player.x+dx, ny = this.player.y+dy;
+      if (nx<0||nx>=MAP_W||ny<0||ny>=MAP_H) continue;
+      const tile = this.map[ny][nx];
+      if (tile.char === '+' || tile.char === "'") { this.toggleDoorAt(nx, ny); return; }
+      const key = nx+','+ny;
+      if (this.containers[key]) { this.openContainer(nx, ny); return; }
+    }
+    if (this.map[this.player.y][this.player.x].char === 'b') { this.sleepOnBed(); return; }
+    this.log('Нечего активировать.');
+  }
+  toggleDoorAt(nx, ny) {
+    if (this.map[ny][nx].char === '+') {
+      this.map[ny][nx] = {...TILES.DOOR_O};
+      this.noise += 2; this.noiseRadius = Math.max(this.noiseRadius, 15);
+      this.log('Ты открыл дверь.'); this.endTurn();
+    } else if (this.map[ny][nx].char === "'") {
+      this.map[ny][nx] = {...TILES.DOOR_C};
+      this.log('Ты закрыл дверь.'); this.endTurn();
+    }
+  }
+  openContainer(x, y) {
+    const key = x+','+y;
+    const cont = this.containers[key];
+    if (!cont) return;
+    if (cont.items.length === 0) { this.log(cont.name + ' пуст.'); return; }
+    for (const itemType of cont.items) {
+      this.items.push(new WorldItem(this.player.x, this.player.y, itemType));
+      this.log('Из ' + cont.name + ' ты берёшь ' + ITEMS[itemType].name + '.');
+    }
+    cont.items = [];
+    this.noise += 1; this.noiseRadius = Math.max(this.noiseRadius, 5);
+    this.endTurn();
+  }
+  useItemFromInventory() { const sel=this.inventory.getSelected(); if (!sel) return; const info=ITEMS[sel.type]; if (info.type==='medkit') { if (this.player.hp>=this.player.maxHp) { this.log('Ты полностью здоров!'); return; } this.player.heal(info.heal); this.inventory.removeSelected(); this.log('Ты используешь '+info.name+' (+'+info.heal+' HP).'); this.updateUI(); } else if (info.type==='food') { const nut=info.nutrition||0, quench=info.quench||0; this.hunger=Math.max(0,this.hunger-nut); this.thirst=Math.max(0,this.thirst-quench); this.inventory.removeSelected(); this.log('Ты съедаешь '+info.name+'. Голод '+this.hunger+', жажда '+this.thirst+'.'); this.updateUI(); } else if (info.type==='weapon') { this.wielded=sel.type; this.log('Ты берёшь '+info.name+'. Баш '+info.bash_dmg+', Порез '+info.cut_dmg+'.'); this.updateUI(); } else if (info.type==='armor') { this.log('Используй E для надевания брони.'); } }
+  equipArmorFromInventory() { const sel=this.inventory.getSelected(); if (!sel) return; const info=ITEMS[sel.type]; if (info.type!=='armor') { this.log('Это не броня.'); return; } const slot=info.slot; if (!slot) { this.log('Неизвестный слот.'); return; } if (this.player.armor[slot]) { this.inventory.add(this.player.armor[slot]); this.log('Снял '+ITEMS[this.player.armor[slot]].name+'.'); } this.player.armor[slot]=sel.type; this.inventory.removeSelected(); this.log('Надел '+info.name+'. Защита '+info.bash_resist+'/'+info.cut_resist+'/'+info.pierce_resist+'.'); this.updateUI(); }
+  dropItemFromInventory() { const sel=this.inventory.getSelected(); if (!sel) { this.log('Нечего выбрасывать.'); return; } const itemType=this.inventory.removeSelected(); if (itemType) { this.items.push(new WorldItem(this.player.x,this.player.y,itemType)); this.log('Ты выбрасываешь '+ITEMS[itemType].name+'.'); if (this.wielded===itemType) this.wielded=null; for (const s in this.player.armor) if (this.player.armor[s]===itemType) this.player.armor[s]=null; this.updateUI(); } }
+  wieldItemFromInventory() { const sel=this.inventory.getSelected(); if (!sel) return; const info=ITEMS[sel.type]; if (info.type==='weapon') { this.wielded=sel.type; this.log('Ты берёшь '+info.name+'.'); this.updateUI(); } else { this.log('Это не оружие.'); } }
+  movePlayer(dx,dy) {
+    if (!this.player.isAlive()) { this.log('☠ Ты погиб. Нажми R для новой игры.'); return; }
+    const nx=this.player.x+dx, ny=this.player.y+dy;
+    if (nx<0||nx>=MAP_W||ny<0||ny>=MAP_H) { this.log('Край мира.'); return; }
+    const tile=this.map[ny][nx];
+    const enemyIdx=this.enemies.findIndex(e=>e.x===nx&&e.y===ny);
+    if (enemyIdx!==-1) { this.attackEnemy(enemyIdx); return; }
+    if (tile.char==='+') { this.map[ny][nx]={...TILES.DOOR_O}; this.noise += 2; this.noiseRadius = Math.max(this.noiseRadius, 15); this.log('Ты открыл дверь.'); this.endTurn(); return; }
+    if (tile.blocks) { this.log(this._blockMsg(tile)); return; }
+    this.player.x=nx; this.player.y=ny; this.noise += 1; this.noiseRadius = Math.max(this.noiseRadius, 10);
+    const b = this.og.getBuildingAt(nx, ny);
+    if (b && this.fov.visible[ny] && this.fov.visible[ny][nx]) { this.log('Ты рядом с '+BUILDING_NAMES[b.type]+'.'); }
+    this.endTurn();
+  }
+  _blockMsg(tile) { const msgs={'#':'Стена.','T':'Дерево.','~':'Вода слишком глубокая.','o':'Окно.','w':'Разбитое окно.','t':'Стол.','b':'Кровать.','h':'Шкаф.','|':'Забор.','-':'Забор.','c':'Машина.'}; return msgs[tile.char]||'Препятствие.'; }
+  attackEnemy(idx) {
+    if (!this.player.isAlive()) return;
+    const enemy=this.enemies[idx]; const weapon=this.wielded?ITEMS[this.wielded]:null;
+    let bash=this.player.damage+rand(0,2), cut=0, toHit=0;
+    if (weapon) { bash+=weapon.bash_dmg||0; cut+=weapon.cut_dmg||0; toHit=weapon.to_hit||0; }
+    const hitRoll=rand(1,20)+toHit; if (hitRoll<8) { this.log('Ты промахиваешься по '+enemy.name+'!'); this.noise += 4; this.noiseRadius = Math.max(this.noiseRadius, 25); this.endTurn(); return; }
+    const total=bash+cut; const actual=enemy.takeDamage(total);
+    this.log('Ты бьёшь '+enemy.name+': '+actual+' урона (баш '+bash+', порез '+cut+').'); this.noise += 6; this.noiseRadius = Math.max(this.noiseRadius, 30);
+    if (!enemy.isAlive()) { this.log('Ты убиваешь '+enemy.name+'!'); this._enemyDrops(enemy); this.enemies.splice(idx,1); }
+    else { const edmg=Math.max(1,enemy.damage+rand(-2,2)); const taken=this.player.takeDamage(edmg); this.log(enemy.name+' бьёт тебя: '+taken+' урона!'); if (!this.player.isAlive()) this.log('☠ Ты погиб! Нажми R.'); }
+    this.endTurn();
+  }
+  _enemyDrops(enemy) { const drops=[{type:'tshirt',chance:0.3},{type:'jeans',chance:0.25},{type:'jacket',chance:0.15},{type:'sneakers',chance:0.2},{type:'canned_food',chance:0.2},{type:'water_clean',chance:0.2},{type:'bandage',chance:0.15},{type:'stick',chance:0.1},{type:'knife',chance:0.05},{type:'helmet',chance:0.05},{type:'machete',chance:0.03},{type:'crowbar',chance:0.05},{type:'stone',chance:0.3}]; for (const d of drops) { if (Math.random()<d.chance) { this.items.push(new WorldItem(enemy.x,enemy.y,d.type)); this.log('С '+enemy.name+' падает '+ITEMS[d.type].name+'.'); } } }
+  pickupItem() {
+    if (!this.player.isAlive()) { this.log('☠ Ты погиб. Нажми R для новой игры.'); return; }
+    const idx=this.items.findIndex(i=>i.x===this.player.x&&i.y===this.player.y);
+    if (idx===-1) { this.log('Здесь нечего подбирать.'); return; }
+    const item=this.items[idx]; const info=ITEMS[item.type];
+    if (this.inventory.totalVolume()+(info.volume||0)>this.inventory.capacity) { this.log('Не влезает!'); return; }
+    this.items.splice(idx,1); this.inventory.add(item.type); this.log('Ты подбираешь '+item.name+'.');
+    if (info.type==='weapon' && !this.wielded) { this.wielded=item.type; this.log('Ты берёшь '+item.name+' в руки.'); }
+    this.endTurn();
+  }
+  useItem() {
+    if (!this.player.isAlive()) { this.log('☠ Ты погиб. Нажми R для новой игры.'); return; }
+    const sel=this.inventory.getSelected(); if (!sel) { this.log('Нет предметов.'); return; }
+    const info=ITEMS[sel.type];
+    if (info.type==='medkit') { if (this.player.hp>=this.player.maxHp) { this.log('Ты полностью здоров!'); return; } this.player.heal(info.heal); this.inventory.removeSelected(); this.log('Ты используешь '+info.name+' (+'+info.heal+' HP).'); this.updateUI(); }
+    else if (info.type==='food') { const nut=info.nutrition||0, quench=info.quench||0; this.hunger=Math.max(0,this.hunger-nut); this.thirst=Math.max(0,this.thirst-quench); this.inventory.removeSelected(); this.log('Ты съедаешь '+info.name+'. Голод '+this.hunger+', жажда '+this.thirst+'.'); this.updateUI(); }
+    else if (info.type==='weapon') { this.wielded=sel.type; this.log('Ты берёшь '+info.name+'.'); this.updateUI(); }
+    else if (info.type==='armor') { this.equipArmorFromInventory(); }
+  }
+  openDoor() { if (!this.player.isAlive()) return; const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; for (const [dx,dy] of dirs) { const nx=this.player.x+dx, ny=this.player.y+dy; if (nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H&&this.map[ny][nx].char==='+') { this.map[ny][nx]={...TILES.DOOR_O}; this.noise += 2; this.noiseRadius = Math.max(this.noiseRadius, 15); this.log('Ты открыл дверь.'); this.endTurn(); return; } } this.log('Рядом нет закрытых дверей.'); }
+  closeDoor() { if (!this.player.isAlive()) return; const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; for (const [dx,dy] of dirs) { const nx=this.player.x+dx, ny=this.player.y+dy; if (nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H&&this.map[ny][nx].char==="'") { this.map[ny][nx]={...TILES.DOOR_C}; this.log('Ты закрыл дверь.'); this.endTurn(); return; } } this.log('Рядом нет открытых дверей.'); }
+  smashTile() { if (!this.player.isAlive()) return; const dirs=[[0,1],[0,-1],[1,0],[-1,0]]; for (const [dx,dy] of dirs) { const nx=this.player.x+dx, ny=this.player.y+dy; if (nx<0||nx>=MAP_W||ny<0||ny>=MAP_H) continue; const tile=this.map[ny][nx]; if (tile.char==='o') { this.map[ny][nx]={...TILES.WINDOW_B}; this.noise += 5; this.noiseRadius = Math.max(this.noiseRadius, 40); this.log('Ты разбиваешь окно!'); this.endTurn(); return; } if (tile.char==='+') { this.map[ny][nx]={...TILES.DOOR_O}; this.noise += 5; this.noiseRadius = Math.max(this.noiseRadius, 40); this.log('Ты выбиваешь дверь!'); this.endTurn(); return; } if (tile.char==="'") { this.map[ny][nx]={...TILES.DOOR_O}; this.noise += 5; this.noiseRadius = Math.max(this.noiseRadius, 40); this.log('Ты выбиваешь дверь!'); this.endTurn(); return; } if (tile.char==='h') { this.map[ny][nx]={...TILES.FLOOR}; this.noise += 4; this.noiseRadius = Math.max(this.noiseRadius, 30); this.log('Ты ломаешь шкаф!'); this.endTurn(); return; } } this.log('Рядом нечего разбить.'); }
+  waitTurn() { if (!this.player.isAlive()) { this.log('☠ Ты погиб. Нажми R.'); return; } this.log('Ты ждёшь...'); this.endTurn(); }
+  endTurn() {
+    if (!this.player.isAlive()) { this.render(); this.updateUI(); return; }
+    this.turn++; this.time += 2; if (this.time >= 1440) this.time -= 1440;
+    this.hunger=Math.min(1000,this.hunger+2); this.thirst=Math.min(1000,this.thirst+3); this.fatigue=Math.min(1000,this.fatigue+1);
+    const regenInterval = this.fatigue > 600 ? 0 : this.fatigue > 300 ? 20 : 10;
+    if (regenInterval > 0 && this.hunger<60 && this.thirst<60 && this.fatigue<80 && this.player.hp<this.player.maxHp && this.turn%regenInterval===0) { this.player.heal(1); this.log('Ты слегка восстанавливаешь силы (+1 HP).'); }
+    if (this.fatigue > 900) { this.player.takeDamage(1); this.log('Ты умираешь от истощения!'); }
+    this.weatherTimer++; if (this.weatherTimer > 100) { this.weatherTimer = 0; const w = ['clear','fog','rain']; this.weather = randItem(w); if (this.weather !== 'clear') this.log('Погода изменилась: '+(this.weather==='fog'?'туман':'дождь')+'.'); }
+    this.noise = Math.max(0, this.noise - 1);
+    this.noiseRadius = Math.max(0, this.noiseRadius - 1);
+    for (let i=this.enemies.length-1; i>=0; i--) {
+      const e=this.enemies[i]; const d=dist(e.x,e.y,this.player.x,this.player.y);
+      if (d<=1.5) { const dmg=Math.max(1,e.damage+rand(-2,2)); const taken=this.player.takeDamage(dmg); this.log(e.name+' бьёт тебя: '+taken+' урона!'); if (!this.player.isAlive()) this.log('☠ Ты погиб! Нажми R.'); }
+      else if (this.fov.visible[e.y] && this.fov.visible[e.y][e.x]) {
+        e.alerted = true;
+        let moves = e.speed; while (moves-- > 0 && dist(e.x,e.y,this.player.x,this.player.y) > 1.5) {
+          let dx=0, dy=0; if (e.x<this.player.x) dx=1; else if (e.x>this.player.x) dx=-1; if (e.y<this.player.y) dy=1; else if (e.y>this.player.y) dy=-1;
+          const nx=e.x+dx, ny=e.y+dy; if (nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H) { const t=this.map[ny][nx]; if (!t.blocks && !this.enemies.some(en=>en.x===nx&&en.y===ny)) { e.x=nx; e.y=ny; } else break; }
+        }
+      } else if (this.noiseRadius > 0 && d <= this.noiseRadius) {
+        e.alerted = true;
+        let dx=0, dy=0; if (e.x<this.player.x) dx=1; else if (e.x>this.player.x) dx=-1; if (e.y<this.player.y) dy=1; else if (e.y>this.player.y) dy=-1;
+        const nx=e.x+dx, ny=e.y+dy; if (nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H) { const t=this.map[ny][nx]; if (!t.blocks && !this.enemies.some(en=>en.x===nx&&en.y===ny)) { e.x=nx; e.y=ny; } }
+      } else if (Math.random() < 0.4) {
+        e.alerted = false;
+        const dx=rand(-1,1), dy=rand(-1,1); const nx=e.x+dx, ny=e.y+dy;
+        if (nx>=0&&nx<MAP_W&&ny>=0&&ny<MAP_H) { const t=this.map[ny][nx]; if (!t.blocks && !this.enemies.some(en=>en.x===nx&&en.y===ny)) { e.x=nx; e.y=ny; } }
+      }
+    }
+    if (this.turn % 40 === 0 && this.enemies.length < 50) {
+      this._spawnEdgeZombie();
+    }
+    if (this.fovEnabled) this.fov.compute(this.player.x, this.player.y);
+    this.updateUI(); this.render();
+  }
+  _spawnEdgeZombie() {
+    let x, y;
+    const edge = rand(0, 3);
+    if (edge === 0) { x = rand(0, MAP_W-1); y = 0; }
+    else if (edge === 1) { x = rand(0, MAP_W-1); y = MAP_H-1; }
+    else if (edge === 2) { x = 0; y = rand(0, MAP_H-1); }
+    else { x = MAP_W-1; y = rand(0, MAP_H-1); }
+    if (this.og.isPassable(x, y) && !this.og.isInsideBuilding(x, y) && !this.enemies.some(e=>e.x===x&&e.y===y) && dist(x,y,this.player.x,this.player.y) > 20) {
+      const types = [
+        {char:'Z',color:'enemy',name:'Зомби',hp:25,dmg:5,spd:1,desc:'Медленный ходячий'},
+        {char:'z',color:'enemy_fast',name:'Бегун',hp:15,dmg:4,spd:2,desc:'Быстрый зомби'},
+        {char:'O',color:'enemy_fat',name:'Толстяк',hp:40,dmg:8,spd:1,desc:'Тяжёлый зомби'}
+      ];
+      const t = randItem(types);
+      this.enemies.push(new Entity(x, y, t.char, COLORS[t.color], t.name, t.hp, t.dmg, t.spd, t.desc));
+      this.log('Из-за края мира появляется '+t.name+'!');
+    }
+  }
+  log(msg) {
+    if (this.messages.length > 0) {
+      const last = this.messages[0];
+      const match = last.match(/^(.+?)\.\s*×(\d+)$/);
+      if (match) { if (match[1] === msg) { this.messages[0] = msg + '. ×' + (parseInt(match[2]) + 1); this._updateLog(); return; } }
+      else if (last === msg || last === msg + '.') { this.messages[0] = msg + '. ×2'; this._updateLog(); return; }
+    }
+    this.messages.unshift(msg);
+    if (this.messages.length > 200) this.messages.pop();
+    this._updateLog();
+  }
+  _updateLog() {
+    const compact = this.messages.slice(0, 4);
+    document.getElementById('log').innerHTML = compact.map(m => '<div class="log-msg">> '+m+'</div>').join('');
+  }
+  updateUI() {
+    document.getElementById('pos').textContent = this.player.x+','+this.player.y;
+    const tile=this.map[this.player.y][this.player.x];
+    const names={'"':'трава',',':'земля',':':'песок','T':'дерево','^':'куст','~':'вода','=':'асфальт','-':'тротуар / забор','#':'стена','.':'пол','+':'дверь',"'":'дверь (откр)','o':'окно','w':'разбитое окно','t':'стол','b':'кровать','h':'шкаф','>':'лестница вниз','<':'лестница вверх','|':'забор','c':'машина'};
+    document.getElementById('terrain').textContent = names[tile.char] || tile.char;
+    document.getElementById('turn').textContent = this.turn;
+    document.getElementById('hp-text').textContent = this.player.hp+'/'+this.player.maxHp;
+    const hpPct=(this.player.hp/this.player.maxHp)*100;
+    const hpBar=document.getElementById('hp-bar'); hpBar.style.width=hpPct+'%'; hpBar.className='hp-fill'+(hpPct<25?' crit':hpPct<50?' warn':'');
+    const hPct=this.hunger/10; document.getElementById('hunger').textContent=hPct<20?'сыт':hPct<50?'голоден':hPct<80?'очень голоден':'УМИРАЕТ'; document.getElementById('hunger').className='value'+(hPct>80?' bad':'');
+    const tPct=this.thirst/10; document.getElementById('thirst').textContent=tPct<20?'не хочет':tPct<50?'хочет':tPct<80?'очень хочет':'УМИРАЕТ'; document.getElementById('thirst').className='value'+(tPct>80?' bad':'');
+    const fPct=this.fatigue/10; document.getElementById('fatigue').textContent=fPct<30?'бодр':fPct<60?'устал':fPct<90?'очень устал':'УМИРАЕТ'; document.getElementById('fatigue').className='value'+(fPct>80?' bad':'');
+    document.getElementById('weight').textContent=(this.inventory.weight/1000).toFixed(1)+'кг';
+    document.getElementById('wield').textContent=this.wielded?ITEMS[this.wielded].name:'голые руки';
+    document.getElementById('armor-torso').textContent=this.player.armor.torso?ITEMS[this.player.armor.torso].name:'нет';
+    document.getElementById('armor-legs').textContent=this.player.armor.legs?ITEMS[this.player.armor.legs].name:'нет';
+    document.getElementById('armor-head').textContent=this.player.armor.head?ITEMS[this.player.armor.head].name:'нет';
+    document.getElementById('armor-feet').textContent=this.player.armor.feet?ITEMS[this.player.armor.feet].name:'нет';
+    document.getElementById('level-name').textContent = this.currentLevel==='surface'?'Поверхность':'Подвал';
+    const hours = Math.floor(this.time / 60); const mins = this.time % 60;
+    document.getElementById('time-display').textContent = (hours<10?'0':'')+hours+':'+(mins<10?'0':'')+mins;
+    document.getElementById('weather-display').textContent = this.weather==='fog'?' | Туман':this.weather==='rain'?' | Дождь':'';
+  }
+  getLightMult() {
+    const h = Math.floor(this.time / 60);
+    if (h >= 6 && h < 18) return 1.0;
+    if (h >= 19 || h < 5) return 0.5;
+    return 0.75;
+  }
+  getWeatherFovMod() {
+    return this.weather === 'fog' ? 0.6 : this.weather === 'rain' ? 0.8 : 1.0;
+  }
+  render() {
+    const ctx=this.ctx; ctx.fillStyle='#000'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+    ctx.font=FONT; ctx.textAlign='center'; ctx.textBaseline='middle';
+    const lightMult = this.getLightMult();
+    const vp=this.getViewport();
+    for (let vy=0; vy<vp.h; vy++) {
+      for (let vx=0; vx<vp.w; vx++) {
+        const mx=vp.x+vx, my=vp.y+vy;
+        const px=vx*TILE_W, py=vy*TILE_H;
+        if (mx<0 || mx>=MAP_W || my<0 || my>=MAP_H) continue;
+        const tile=this.map[my][mx];
+        let visible=true, explored=true;
+        if (this.fovEnabled) { visible=this.fov.visible[my][mx]; explored=this.fov.explored[my][mx]; }
+        if (!explored) continue;
+        const bgColor=BGS[tile.color];
+        if (bgColor) { ctx.fillStyle=visible?bgColor:'#030303'; ctx.fillRect(px,py,TILE_W,TILE_H); }
+        let colorKey=tile.color; if (!visible) colorKey+='_dark';
+        let color=COLORS[colorKey]||COLORS.unexplored;
+        if (visible && lightMult < 1.0) {
+          const rgb = color.match(/#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+          if (rgb) { const r=Math.floor(parseInt(rgb[1],16)*lightMult); const g=Math.floor(parseInt(rgb[2],16)*lightMult); const b=Math.floor(parseInt(rgb[3],16)*lightMult); color='rgb('+r+','+g+','+b+')'; }
+        }
+        ctx.fillStyle=color; ctx.fillText(tile.char, px+TILE_W/2, py+TILE_H/2+1);
+      }
+    }
+    for (const item of this.items) {
+      if (item.x<vp.x || item.x>=vp.x+vp.w || item.y<vp.y || item.y>=vp.y+vp.h) continue;
+      if (!this.fovEnabled || (this.fov.visible[item.y] && this.fov.visible[item.y][item.x])) {
+        const vx=item.x-vp.x, vy=item.y-vp.y;
+        ctx.fillStyle=COLORS[item.color]||'#fff'; ctx.fillText(item.char, vx*TILE_W+TILE_W/2, vy*TILE_H+TILE_H/2+1);
+      }
+    }
+    for (const enemy of this.enemies) {
+      if (enemy.x<vp.x || enemy.x>=vp.x+vp.w || enemy.y<vp.y || enemy.y>=vp.y+vp.h) continue;
+      if (!this.fovEnabled || (this.fov.visible[enemy.y] && this.fov.visible[enemy.y][enemy.x])) {
+        const vx=enemy.x-vp.x, vy=enemy.y-vp.y;
+        ctx.fillStyle=enemy.color; ctx.fillText(enemy.char, vx*TILE_W+TILE_W/2, vy*TILE_H+TILE_H/2+1);
+        if (enemy.alerted) { ctx.fillStyle='#fa4'; ctx.fillText('!', vx*TILE_W+TILE_W/2+6, vy*TILE_H+2); }
+      }
+    }
+    const pvx=this.player.x-vp.x, pvy=this.player.y-vp.y;
+    const pcx=pvx*TILE_W+TILE_W/2, pcy=pvy*TILE_H+TILE_H/2+1;
+    ctx.fillStyle=this.player.color; ctx.fillText(this.player.char, pcx, pcy);
+    if (this.fovEnabled) {
+      const grad=ctx.createRadialGradient(pcx,pcy,4,pcx,pcy,FOV_RADIUS*TILE_W*0.6*this.getWeatherFovMod());
+      grad.addColorStop(0,'rgba(68,170,255,0.06)'); grad.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=grad; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+      const gs=40;
+      let g=ctx.createLinearGradient(0,0,0,gs); g.addColorStop(0,'rgba(0,0,0,0.4)'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,this.canvas.width,gs);
+      g=ctx.createLinearGradient(0,this.canvas.height-gs,0,this.canvas.height); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.4)'); ctx.fillStyle=g; ctx.fillRect(0,this.canvas.height-gs,this.canvas.width,gs);
+      g=ctx.createLinearGradient(0,0,gs,0); g.addColorStop(0,'rgba(0,0,0,0.4)'); g.addColorStop(1,'rgba(0,0,0,0)'); ctx.fillStyle=g; ctx.fillRect(0,0,gs,this.canvas.height);
+      g=ctx.createLinearGradient(this.canvas.width-gs,0,this.canvas.width,0); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,0.4)'); ctx.fillStyle=g; ctx.fillRect(this.canvas.width-gs,0,gs,this.canvas.height);
+    }
+    if (lightMult < 1.0) {
+      ctx.fillStyle='rgba(0,0,20,'+(1.0-lightMult)*0.5+')'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+    }
+    if (this.weather === 'rain') {
+      ctx.fillStyle='rgba(100,100,150,0.05)'; ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
+    }
+  }
+  loop(ts) { this.frameCount=(this.frameCount||0)+1; if (ts-(this.lastTime||0)>=1000) { this.fps=this.frameCount; this.frameCount=0; this.lastTime=ts; } requestAnimationFrame((t)=>this.loop(t)); }
+}
+const game = new Game();
+</script>
+</body>
+</html>
